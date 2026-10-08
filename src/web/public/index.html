@@ -1,0 +1,1670 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coin Smith - PSBT Builder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;900&family=IBM+Plex+Mono:wght@300;400;500&display=swap"
+    rel="stylesheet">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      --bg: #050810;
+      --bg2: #080d1a;
+      --panel: #0a1020;
+      --border: #112240;
+      --border2: #1a3060;
+      --cyan: #00d4ff;
+      --cyan2: #0099cc;
+      --gold: #f7931a;
+      --gold2: #c97010;
+      --green: #00ff88;
+      --red: #ff4560;
+      --red-glow: rgba(255, 69, 96, 0.15);
+      --amber: #ffb800;
+      --text: #c8d8f0;
+      --muted: #4a6080;
+      --mono: 'IBM Plex Mono', monospace;
+      --display: 'Outfit', sans-serif;
+    }
+
+    html,
+    body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--display);
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, #1a3060 1px, transparent 1px);
+      background-size: 32px 32px;
+      opacity: .22;
+      pointer-events: none;
+      z-index: 0
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 212, 255, .05) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-rows: 52px 1fr;
+      height: 100vh;
+      max-width: 1640px;
+      margin: 0 auto;
+      padding: 0 20px
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 1px solid var(--border);
+      padding: 0 2px
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .logo-mark {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0
+    }
+
+    .logo-mark svg {
+      width: 100%;
+      height: 100%
+    }
+
+    .logo-name {
+      font-size: 17px;
+      font-weight: 900;
+      letter-spacing: .06em;
+      color: #fff
+    }
+
+    .logo-name em {
+      color: var(--cyan);
+      font-style: normal
+    }
+
+    .logo-sub {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--muted);
+      letter-spacing: .14em;
+      text-transform: uppercase
+    }
+
+    .hspacer {
+      flex: 1
+    }
+
+    .health {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted)
+    }
+
+    .hdot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: all .4s
+    }
+
+    .hdot.ok {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green)
+    }
+
+    .hdot.err {
+      background: var(--red);
+      box-shadow: 0 0 8px var(--red)
+    }
+
+    .htag {
+      font-size: 10px;
+      font-family: var(--mono);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: 3px
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 200px 340px 1fr 290px;
+      gap: 0;
+      min-height: 0;
+      padding: 16px 0
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0
+    }
+
+    .panel-l {
+      padding-right: 16px;
+      border-right: 1px solid var(--border)
+    }
+
+    .panel-c {
+      padding: 0 16px
+    }
+
+    /* FIX: panel-r overflow:visible so tooltip is never clipped; z-index above animated panel-c */
+    .panel-r {
+      padding-left: 16px;
+      border-left: 1px solid var(--border);
+      position: relative;
+      z-index: 3;
+      overflow: visible;
+      display: flex;
+      flex-direction: column;
+      min-height: 0
+    }
+
+    .panel-r-scroll {
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+      padding-bottom: 24px
+    }
+
+    .panel-r-scroll::-webkit-scrollbar {
+      width: 4px
+    }
+
+    .panel-r-scroll::-webkit-scrollbar-track {
+      background: transparent
+    }
+
+    .panel-r-scroll::-webkit-scrollbar-thumb {
+      background: var(--border2);
+      border-radius: 3px
+    }
+
+    .plabel {
+      font-size: 9px;
+      font-family: var(--mono);
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 2px
+    }
+
+    .plabel::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border)
+    }
+
+    .editor-wrap {
+      flex: 1;
+      min-height: 0
+    }
+
+    textarea {
+      width: 100%;
+      height: 100%;
+      min-height: 280px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 11.5px;
+      line-height: 1.7;
+      padding: 14px;
+      resize: none;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s
+    }
+
+    textarea:focus {
+      border-color: var(--cyan2);
+      box-shadow: 0 0 0 2px rgba(0, 212, 255, .08), inset 0 0 20px rgba(0, 212, 255, .03)
+    }
+
+    textarea.invalid {
+      border-color: var(--red) !important;
+      box-shadow: 0 0 0 2px var(--red-glow) !important
+    }
+
+    textarea::placeholder {
+      color: var(--muted);
+      opacity: .5
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border2);
+      border-radius: 3px
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      align-items: center
+    }
+
+    button {
+      font-family: var(--display);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      transition: all .15s;
+      letter-spacing: .04em
+    }
+
+    .btn-build {
+      flex: 1;
+      background: linear-gradient(135deg, var(--cyan), var(--cyan2));
+      color: #000;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      box-shadow: 0 0 20px rgba(0, 212, 255, .25)
+    }
+
+    .btn-build:hover {
+      box-shadow: 0 0 30px rgba(0, 212, 255, .45);
+      transform: translateY(-1px)
+    }
+
+    .btn-build:active {
+      transform: translateY(0)
+    }
+
+    .btn-build:disabled {
+      background: var(--border2);
+      color: var(--muted);
+      box-shadow: none;
+      cursor: not-allowed;
+      transform: none
+    }
+
+    .btn-sm {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 9px 12px;
+      font-size: 11px
+    }
+
+    .btn-sm:hover {
+      color: var(--text);
+      border-color: var(--border2)
+    }
+
+    .btn-ex:hover {
+      color: var(--gold);
+      border-color: var(--gold2)
+    }
+
+    .spin {
+      animation: spinR .7s linear infinite;
+      display: inline-block
+    }
+
+    @keyframes spinR {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .flow-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: var(--muted)
+    }
+
+    .flow-empty .idle-icon {
+      opacity: .12
+    }
+
+    .flow-empty p {
+      font-size: 12px;
+      font-family: var(--mono);
+      opacity: .6;
+      text-align: center;
+      line-height: 1.8
+    }
+
+    .flow-empty kbd {
+      font-family: var(--mono);
+      font-size: 10px;
+      border: 1px solid var(--border2);
+      border-radius: 3px;
+      padding: 2px 6px
+    }
+
+    .flow-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+      overflow-y: auto
+    }
+
+    .flow-container::-webkit-scrollbar {
+      width: 4px
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(8px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      animation: fadeUp .3s ease
+    }
+
+    .status-ok {
+      background: rgba(0, 255, 136, .07);
+      border: 1px solid rgba(0, 255, 136, .2);
+      color: var(--green)
+    }
+
+    .status-err {
+      background: var(--red-glow);
+      border: 1px solid rgba(255, 69, 96, .25);
+      color: var(--red)
+    }
+
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px
+    }
+
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      animation: fadeUp .35s ease both;
+      position: relative;
+      cursor: default;
+      transition: border-color .2s, box-shadow .2s, transform .15s
+    }
+
+    .stat-card:hover {
+      border-color: var(--border2);
+      box-shadow: 0 0 14px rgba(0, 212, 255, .07);
+      transform: translateY(-1px)
+    }
+
+    .stat-card:nth-child(1) {
+      animation-delay: .04s
+    }
+
+    .stat-card:nth-child(2) {
+      animation-delay: .08s
+    }
+
+    .stat-card:nth-child(3) {
+      animation-delay: .12s
+    }
+
+    .stat-card:nth-child(4) {
+      animation-delay: .16s
+    }
+
+    .sc-label {
+      font-size: 9px;
+      font-family: var(--mono);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px
+    }
+
+    .sc-val {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--cyan);
+      letter-spacing: -.02em;
+      line-height: 1
+    }
+
+    .sc-unit {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--muted);
+      margin-left: 3px;
+      font-weight: 400
+    }
+
+    .sc-sub {
+      font-size: 9px;
+      font-family: var(--mono);
+      color: var(--muted);
+      margin-top: 4px;
+      opacity: 0;
+      transition: opacity .2s
+    }
+
+    .stat-card:hover .sc-sub {
+      opacity: 1
+    }
+
+    .flow-diagram {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      animation: fadeUp .4s ease .18s both;
+      min-height: 180px;
+      overflow-x: auto;
+      flex-shrink: 0
+    }
+
+    .fc-col {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0
+    }
+
+    .fc-inputs {
+      flex-shrink: 0;
+      width: 162px
+    }
+
+    .fc-tx {
+      flex-shrink: 0;
+      width: 110px;
+      display: flex;
+      align-items: center;
+      justify-content: center
+    }
+
+    .fc-outputs {
+      flex-shrink: 0;
+      width: 162px
+    }
+
+    .fc-conn {
+      flex: 1;
+      position: relative;
+      align-self: stretch;
+      min-width: 30px
+    }
+
+    svg.connsvg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible
+    }
+
+    .fline {
+      stroke: var(--cyan);
+      stroke-width: 1.5;
+      fill: none;
+      stroke-dasharray: 5 3;
+      animation: dash 1.4s linear infinite;
+      opacity: .4;
+      transition: opacity .2s, stroke-width .2s
+    }
+
+    .fline.gold {
+      stroke: var(--gold);
+      animation: dashG 1.4s linear infinite;
+      opacity: .55
+    }
+
+    .fline.active {
+      opacity: 1;
+      stroke-width: 2.5
+    }
+
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -16
+      }
+    }
+
+    @keyframes dashG {
+      to {
+        stroke-dashoffset: -16
+      }
+    }
+
+    .io-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 9px 11px;
+      animation: fadeUp .32s ease both;
+      transition: border-color .2s, box-shadow .2s, background .2s;
+      cursor: pointer;
+      user-select: none
+    }
+
+    .io-card:hover {
+      border-color: var(--border2);
+      box-shadow: 0 0 12px rgba(0, 212, 255, .07)
+    }
+
+    .io-card.chcard {
+      border-color: rgba(247, 147, 26, .35);
+      background: rgba(247, 147, 26, .04)
+    }
+
+    .io-card.chcard:hover {
+      box-shadow: 0 0 12px rgba(247, 147, 26, .12)
+    }
+
+    .io-card.expanded {
+      border-color: var(--cyan2) !important;
+      background: rgba(0, 212, 255, .04) !important
+    }
+
+    .io-card.chcard.expanded {
+      border-color: var(--gold) !important;
+      background: rgba(247, 147, 26, .08) !important
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 8px;
+      font-family: var(--mono);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: var(--border);
+      color: var(--text);
+      margin-bottom: 5px
+    }
+
+    .badge.p2wpkh {
+      background: rgba(0, 212, 255, .12);
+      color: var(--cyan)
+    }
+
+    .badge.p2tr {
+      background: rgba(0, 255, 136, .12);
+      color: var(--green)
+    }
+
+    .badge.p2pkh {
+      background: rgba(255, 184, 0, .12);
+      color: var(--amber)
+    }
+
+    .badge.p2sh,
+    .badge.p2sh-p2wpkh {
+      background: rgba(180, 100, 255, .12);
+      color: #b464ff
+    }
+
+    .badge.change {
+      background: rgba(247, 147, 26, .2);
+      color: var(--gold)
+    }
+
+    .io-sats {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -.01em
+    }
+
+    .io-sats span {
+      font-size: 9px;
+      font-family: var(--mono);
+      color: var(--muted);
+      font-weight: 400;
+      margin-left: 2px
+    }
+
+    .io-btc {
+      font-size: 9px;
+      font-family: var(--mono);
+      color: var(--muted);
+      margin-top: 1px
+    }
+
+    .io-txid {
+      font-size: 8.5px;
+      font-family: var(--mono);
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .io-detail {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows .28s cubic-bezier(.4, 0, .2, 1);
+      margin-top: 0
+    }
+
+    .io-card.expanded .io-detail {
+      grid-template-rows: 1fr;
+      margin-top: 8px
+    }
+
+    .io-detail-inner {
+      overflow: hidden
+    }
+
+    .io-field {
+      margin-bottom: 5px
+    }
+
+    .io-fkey {
+      font-size: 8px;
+      font-family: var(--mono);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 2px
+    }
+
+    .io-fval {
+      font-size: 9px;
+      font-family: var(--mono);
+      color: var(--text);
+      word-break: break-all;
+      line-height: 1.4;
+      background: var(--bg);
+      padding: 4px 6px;
+      border-radius: 3px;
+      border: 1px solid var(--border)
+    }
+
+    .io-expand-hint {
+      font-size: 8px;
+      font-family: var(--mono);
+      color: var(--muted);
+      text-align: right;
+      opacity: .5;
+      margin-top: 2px
+    }
+
+    .more-badge {
+      background: var(--border);
+      border-radius: 5px;
+      padding: 5px 8px;
+      text-align: center;
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--muted)
+    }
+
+    .tx-box {
+      background: linear-gradient(160deg, rgba(0, 212, 255, .08), rgba(0, 153, 204, .04));
+      border: 1px solid var(--cyan2);
+      border-radius: 10px;
+      padding: 14px 10px;
+      text-align: center;
+      width: 100%;
+      box-shadow: 0 0 24px rgba(0, 212, 255, .1), inset 0 0 16px rgba(0, 212, 255, .03);
+      position: relative;
+      overflow: hidden
+    }
+
+    .tx-box::before {
+      content: '';
+      position: absolute;
+      inset: -60%;
+      background: conic-gradient(transparent, rgba(0, 212, 255, .05) 60deg, transparent 120deg);
+      animation: spin 10s linear infinite
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .tx-lbl {
+      font-size: 8px;
+      font-family: var(--mono);
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--cyan2);
+      position: relative;
+      z-index: 1
+    }
+
+    .tx-icon {
+      font-size: 20px;
+      margin: 4px 0;
+      position: relative;
+      z-index: 1
+    }
+
+    .tx-num {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--cyan);
+      position: relative;
+      z-index: 1
+    }
+
+    .tx-sub {
+      font-size: 8px;
+      font-family: var(--mono);
+      color: var(--muted);
+      position: relative;
+      z-index: 1
+    }
+
+    .psbt-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 13px;
+      animation: fadeUp .45s ease .28s both;
+      flex-shrink: 0;
+      transition: border-color .2s
+    }
+
+    .psbt-box:hover {
+      border-color: var(--border2)
+    }
+
+    .psbt-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 7px
+    }
+
+    .psbt-ttl {
+      font-size: 9px;
+      font-family: var(--mono);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted)
+    }
+
+    .psbt-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center
+    }
+
+    .btn-copy {
+      background: var(--border);
+      color: var(--text);
+      font-size: 10px;
+      font-family: var(--mono);
+      padding: 3px 9px;
+      border-radius: 3px;
+      border: none;
+      cursor: pointer;
+      font-weight: 400
+    }
+
+    .btn-copy:hover {
+      background: var(--cyan);
+      color: #000
+    }
+
+    .btn-expand {
+      background: transparent;
+      color: var(--muted);
+      font-size: 10px;
+      font-family: var(--mono);
+      padding: 3px 7px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      font-weight: 400;
+      transition: all .15s
+    }
+
+    .btn-expand:hover {
+      color: var(--text);
+      border-color: var(--border2)
+    }
+
+    .psbt-val {
+      font-size: 9px;
+      font-family: var(--mono);
+      color: var(--muted);
+      word-break: break-all;
+      line-height: 1.5;
+      overflow: hidden;
+      transition: max-height .35s cubic-bezier(.4, 0, .2, 1);
+      max-height: 38px;
+      cursor: pointer
+    }
+
+    .psbt-val.expanded {
+      max-height: 300px
+    }
+
+    .psbt-magic {
+      display: inline-block;
+      color: var(--cyan);
+      opacity: .8
+    }
+
+    .rblock {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      animation: fadeUp .3s ease both;
+      flex-shrink: 0;
+      margin-bottom: 10px
+    }
+
+    .rtitle {
+      font-size: 9px;
+      font-family: var(--mono);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 9px;
+      padding-bottom: 7px;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .mrow {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 6px;
+      border-radius: 5px;
+      position: relative;
+      cursor: default;
+      transition: background .15s
+    }
+
+    .mrow:hover {
+      background: rgba(26, 48, 96, .4)
+    }
+
+    .mrow:hover .mtooltip {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto
+    }
+
+    .mk {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--muted)
+    }
+
+    .mv {
+      font-size: 10.5px;
+      font-weight: 600;
+      font-family: var(--mono);
+      color: var(--text)
+    }
+
+    .mv.ok {
+      color: var(--green)
+    }
+
+    .mv.warn {
+      color: var(--amber)
+    }
+
+    .mv.dim {
+      color: var(--muted)
+    }
+
+    /* FIX: tooltip above row, right-aligned, stays inside panel-r */
+    .mtooltip {
+      position: absolute;
+      bottom: calc(100% + 7px);
+      right: 0;
+      left: auto;
+      transform: translateY(5px);
+      background: #0d1a30;
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text);
+      white-space: normal;
+      max-width: 250px;
+      line-height: 1.5;
+      opacity: 0;
+      transition: opacity .2s, transform .2s;
+      pointer-events: none;
+      z-index: 50;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, .6)
+    }
+
+    .mtooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      right: 14px;
+      border: 5px solid transparent;
+      border-top-color: #0d1a30
+    }
+
+    .bbar-wrap {
+      position: relative;
+      margin-bottom: 9px
+    }
+
+    .bbar {
+      height: 10px;
+      border-radius: 5px;
+      background: var(--border);
+      overflow: hidden;
+      cursor: crosshair
+    }
+
+    .bseg {
+      height: 100%;
+      float: left;
+      transition: width .7s cubic-bezier(.4, 0, .2, 1);
+      position: relative
+    }
+
+    .bseg.pay {
+      background: linear-gradient(90deg, var(--cyan), var(--cyan2))
+    }
+
+    .bseg.chg {
+      background: linear-gradient(90deg, var(--gold), var(--gold2))
+    }
+
+    .bseg.fee {
+      background: linear-gradient(90deg, var(--red), #bb2244)
+    }
+
+    .bseg:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 7px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0d1a30;
+      border: 1px solid var(--border2);
+      border-radius: 5px;
+      padding: 5px 9px;
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text);
+      white-space: nowrap;
+      z-index: 20;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, .5)
+    }
+
+    .bleg {
+      display: flex;
+      gap: 9px;
+      flex-wrap: wrap
+    }
+
+    .bleg-i {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 9px;
+      font-family: var(--mono);
+      color: var(--muted)
+    }
+
+    .bdot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      flex-shrink: 0
+    }
+
+    .bdot.pay {
+      background: var(--cyan)
+    }
+
+    .bdot.chg {
+      background: var(--gold)
+    }
+
+    .bdot.fee {
+      background: var(--red)
+    }
+
+    .warn-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px
+    }
+
+    /* FIX: warning always visible, no click needed */
+    .warn-item {
+      border-radius: 6px;
+      background: rgba(255, 184, 0, .06);
+      border: 1px solid rgba(255, 184, 0, .18);
+      animation: fadeUp .3s ease both;
+      padding: 8px 10px;
+      transition: background .15s, border-color .15s
+    }
+
+    .warn-item:hover {
+      background: rgba(255, 184, 0, .1);
+      border-color: rgba(255, 184, 0, .3)
+    }
+
+    .warn-head {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 5px
+    }
+
+    .wico {
+      font-size: 12px;
+      flex-shrink: 0
+    }
+
+    .wcode {
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--mono);
+      color: var(--amber);
+      letter-spacing: .06em;
+      word-break: break-word;
+      white-space: normal
+    }
+
+    .warn-desc {
+      padding-left: 19px;
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--muted);
+      line-height: 1.55
+    }
+
+    .nowarn {
+      text-align: center;
+      padding: 14px;
+      font-size: 10.5px;
+      font-family: var(--mono);
+      color: var(--muted);
+      opacity: .55
+    }
+
+    .err-box {
+      background: var(--red-glow);
+      border: 1px solid rgba(255, 69, 96, .25);
+      border-radius: 8px;
+      padding: 14px;
+      animation: fadeUp .3s ease
+    }
+
+    .err-code {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: var(--mono);
+      color: var(--red);
+      margin-bottom: 6px
+    }
+
+    .err-msg {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.6;
+      font-family: var(--mono)
+    }
+
+    footer {
+      position: fixed;
+      bottom: 0;
+      right: 24px;
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--muted);
+      padding: 5px 0;
+      opacity: .45
+    }
+
+    @media(max-width:1100px) {
+      main {
+        grid-template-columns: 180px 300px 1fr 250px
+      }
+    }
+
+    /* Fixtures panel */
+    .panel-fx {
+      padding-right: 14px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0
+    }
+
+    .fx-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 0
+    }
+
+    .fx-list::-webkit-scrollbar {
+      width: 3px
+    }
+
+    .fx-list::-webkit-scrollbar-track {
+      background: transparent
+    }
+
+    .fx-list::-webkit-scrollbar-thumb {
+      background: var(--border2);
+      border-radius: 3px
+    }
+
+    .fx-item {
+      padding: 7px 9px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+      display: flex;
+      flex-direction: column;
+      gap: 2px
+    }
+
+    .fx-item:hover {
+      background: rgba(0, 212, 255, .05);
+      border-color: var(--border)
+    }
+
+    .fx-item.active {
+      background: rgba(0, 212, 255, .08);
+      border-color: var(--cyan2)
+    }
+
+    .fx-name {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .fx-item.active .fx-name {
+      color: var(--cyan)
+    }
+
+    .fx-hint {
+      font-size: 8.5px;
+      font-family: var(--mono);
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .fx-loading {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--muted);
+      text-align: center;
+      padding: 24px 0;
+      opacity: .5
+    }
+
+    .fx-err {
+      font-size: 9.5px;
+      font-family: var(--mono);
+      color: var(--red);
+      text-align: center;
+      padding: 16px 6px;
+      line-height: 1.6;
+      opacity: .8
+    }
+
+    .fx-reload {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 9px;
+      font-family: var(--mono);
+      padding: 5px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 4px;
+      transition: all .15s
+    }
+
+    .fx-reload:hover {
+      color: var(--text);
+      border-color: var(--border2)
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <header>
+      <div class="logo">
+        <div class="logo-mark">
+          <svg viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="14" stroke="#00d4ff" stroke-width="1" opacity=".3" />
+            <circle cx="16" cy="16" r="9" stroke="#00d4ff" stroke-width=".5" opacity=".18" />
+            <path
+              d="M10.5 9h7c2 0 3.5 1.2 3.5 3 0 1-.5 1.9-1.4 2.4 1.2.5 2.1 1.6 2.1 3C21.7 19.8 19.8 22 17.5 22H10.5V9z"
+              fill="#f7931a" opacity=".9" />
+            <path d="M10 7.5v2M13 7.5v2M10 22.5v2M13 22.5v2" stroke="#f7931a" stroke-width="1.5" stroke-linecap="round"
+              transform="translate(3, -0.5)" />
+          </svg>
+        </div>
+        <div>
+          <div class="logo-name">COIN<em>SMITH</em></div>
+          <div class="logo-sub">PSBT Builder</div>
+        </div>
+      </div>
+      <div class="hspacer"></div>
+      <span class="htag">Bitcoin</span>
+      <span class="htag">BIP-174</span>
+      <div class="health">
+        <div class="hdot" id="hdot"></div>
+        <span id="hlabel">connecting</span>
+      </div>
+    </header>
+    <main>
+      <div class="panel panel-fx">
+        <div class="plabel">fixtures</div>
+        <div class="fx-list" id="fxlist">
+          <div class="fx-loading">loading...</div>
+        </div>
+        <button class="fx-reload" onclick="loadFixtures()">&#8635; reload</button>
+      </div>
+      <div class="panel panel-l">
+        <div class="plabel">fixture.json</div>
+        <div class="editor-wrap">
+          <textarea id="tin"
+            placeholder='{&#10;  "network": "mainnet",&#10;  "utxos": [...],&#10;  "payments": [...],&#10;  "change": {...},&#10;  "fee_rate_sat_vb": 5&#10;}'
+            spellcheck="false" autocomplete="off"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn-build" id="bbuild" onclick="doBuild()"><span id="bico">&#9889;</span><span id="btxt">Build
+              PSBT</span></button>
+          <button class="btn-sm btn-ex" onclick="loadEx()">Example</button>
+          <button class="btn-sm" onclick="doClear()">Clear</button>
+        </div>
+      </div>
+      <div class="panel panel-c">
+        <div class="plabel">transaction flow</div>
+        <div class="flow-empty" id="fempty">
+          <svg class="idle-icon" width="72" height="56" viewBox="0 0 72 56" fill="none">
+            <rect x="2" y="10" width="18" height="12" rx="3" stroke="#4a6080" stroke-width="1.5" />
+            <rect x="2" y="26" width="18" height="12" rx="3" stroke="#4a6080" stroke-width="1.5" />
+            <rect x="27" y="8" width="18" height="40" rx="4" stroke="#4a6080" stroke-width="1.5" />
+            <rect x="52" y="10" width="18" height="12" rx="3" stroke="#4a6080" stroke-width="1.5" />
+            <rect x="52" y="26" width="18" height="12" rx="3" stroke="#4a6080" stroke-width="1.5" />
+            <path d="M20 16 Q24 16 27 24" stroke="#4a6080" stroke-width="1" stroke-dasharray="3 2" />
+            <path d="M20 32 Q24 32 27 32" stroke="#4a6080" stroke-width="1" stroke-dasharray="3 2" />
+            <path d="M45 24 Q48 16 52 16" stroke="#4a6080" stroke-width="1" stroke-dasharray="3 2" />
+            <path d="M45 32 Q48 32 52 32" stroke="#4a6080" stroke-width="1" stroke-dasharray="3 2" />
+          </svg>
+          <p>Paste a fixture and press Build<br>to visualize the transaction flow<br><kbd>Ctrl+Enter</kbd></p>
+        </div>
+        <div class="flow-container" id="fcon" style="display:none"></div>
+      </div>
+      <div class="panel panel-r">
+        <div class="plabel">analysis</div>
+        <div class="panel-r-scroll">
+          <div id="rcon">
+            <div
+              style="text-align:center;padding:48px 0;font-size:11px;font-family:var(--mono);color:var(--muted);opacity:.45">
+              awaiting build...</div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <footer id="ftm"></footer>
+    <script>
+      const WARN_META = {
+        HIGH_FEE: { ico: '&#128293;', desc: 'Fee > 1,000,000 sats or rate > 200 sat/vB. This is extremely high &mdash; verify before signing.' },
+        DUST_CHANGE: { ico: '&#127783;', desc: 'Change output is below the 546 sat dust threshold. It costs more to spend than it\'s worth.' },
+        SEND_ALL: { ico: '&#8594;', desc: 'No change output was created. All leftover sats were absorbed into the fee.' },
+        RBF_SIGNALING: { ico: '&#128260;', desc: 'nSequence &le; 0xFFFFFFFD signals Replace-By-Fee (BIP-125). Allows fee bumping before confirmation.' },
+      }
+      const META_TIPS = {
+        network: 'Which Bitcoin network this transaction targets',
+        rbf_signaling: 'BIP-125: inputs with nSequence &le; 0xFFFFFFFD allow fee replacement while unconfirmed',
+        locktime: 'nLockTime: transaction invalid until this block height or unix timestamp is reached',
+        locktime_type: '"block_height" if < 500M, "unix_timestamp" if &ge; 500M, "none" if zero',
+        change_index: 'Index of the change output in the outputs array. null means SEND_ALL',
+        strategy: 'Coin selection algorithm: greedy largest-first minimizes input count',
+      }
+      const EX = {
+        network: 'mainnet',
+        utxos: [{ txid: 'a'.repeat(64), vout: 0, value_sats: 200000, script_pubkey_hex: '0014' + 'ab'.repeat(20), script_type: 'p2wpkh', address: 'bc1q...' }],
+        payments: [{ address: 'bc1q...', script_pubkey_hex: '0014' + 'cd'.repeat(20), script_type: 'p2wpkh', value_sats: 100000 }],
+        change: { address: 'bc1q...', script_pubkey_hex: '0014' + 'ef'.repeat(20), script_type: 'p2wpkh' },
+        fee_rate_sat_vb: 5, rbf: true
+      }
+      const el = id => document.getElementById(id)
+      const fmt = n => n.toLocaleString('en-US')
+      const btc = n => (n / 1e8).toFixed(8)
+      const pct = (v, t) => t > 0 ? (v / t * 100).toFixed(1) : '0'
+      async function checkHealth() {
+        try { const r = await fetch('/api/health'); const d = await r.json(); if (d.ok) { el('hdot').className = 'hdot ok'; el('hlabel').textContent = 'online' } }
+        catch { el('hdot').className = 'hdot err'; el('hlabel').textContent = 'offline' }
+      }
+      checkHealth()
+      function loadEx() { el('tin').value = JSON.stringify(EX, null, 2); el('tin').classList.remove('invalid') }
+      function doClear() {
+        el('tin').value = ''; el('tin').classList.remove('invalid')
+        el('fempty').style.display = 'flex'; el('fcon').style.display = 'none'
+        el('rcon').innerHTML = '<div style="text-align:center;padding:48px 0;font-size:11px;font-family:var(--mono);color:var(--muted);opacity:.45">awaiting build...</div>'
+        el('ftm').textContent = ''
+      }
+      let building = false
+      async function doBuild() {
+        if (building) return
+        const raw = el('tin').value.trim(); if (!raw) return
+        let parsed
+        try { parsed = JSON.parse(raw); el('tin').classList.remove('invalid') }
+        catch { el('tin').classList.add('invalid'); showErr({ code: 'JSON_PARSE_ERROR', message: 'Invalid JSON - check syntax' }); return }
+        building = true; const btn = el('bbuild'); btn.disabled = true
+        el('bico').innerHTML = '<span class="spin">&#8987;</span>'; el('btxt').textContent = 'Building...'
+        const t0 = performance.now()
+        try {
+          const res = await fetch('/api/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(parsed) })
+          const result = await res.json()
+          el('ftm').textContent = 'built in ' + Math.round(performance.now() - t0) + 'ms'
+          renderResult(result)
+        } catch { showErr({ code: 'NETWORK_ERROR', message: 'Could not reach server' }) }
+        finally { building = false; btn.disabled = false; el('bico').innerHTML = '&#9889;'; el('btxt').textContent = 'Build PSBT' }
+      }
+      function showErr(err) {
+        el('fempty').style.display = 'none'; el('fcon').style.display = 'flex'
+        el('fcon').innerHTML = '<div class="status-bar status-err">&#10007; &nbsp;Error</div><div class="err-box"><div class="err-code">' + err.code + '</div><div class="err-msg">' + err.message + '</div></div>'
+        el('rcon').innerHTML = ''
+      }
+      function badge(type, extra) {
+        return '<span class="badge ' + (type || 'unknown') + '">' + (type || '?') + (extra ? ' &middot; ' + extra : '') + '</span>'
+      }
+      function ioCard(data, isInput, idx) {
+        const isChange = !isInput && data.is_change
+        const id = 'card-' + (isInput ? 'in' : 'out') + '-' + idx
+        const txidLine = isInput
+          ? '<div class="io-txid">' + data.txid.slice(0, 12) + '...:' + data.vout + '</div>'
+          : '<div class="io-txid">' + (data.script_pubkey_hex ? data.script_pubkey_hex.slice(0, 12) + '...' : '') + '</div>'
+        const detailFields = isInput ? [['txid', data.txid], ['vout', data.vout], ['script_pubkey_hex', data.script_pubkey_hex]] :
+          [['script_pubkey_hex', data.script_pubkey_hex], ['is_change', data.is_change ? 'true' : 'false'], ['n', data.n]]
+        const detailHtml = detailFields.map(function (kv) { return '<div class="io-field"><div class="io-fkey">' + kv[0] + '</div><div class="io-fval">' + kv[1] + '</div></div>' }).join('')
+        return '<div class="io-card' + (isChange ? ' chcard' : '') + '" id="' + id + '" onclick="toggleCard(\'' + id + '\')" style="animation-delay:' + (idx * .06) + 's">' +
+          badge(data.script_type, isChange ? 'change' : '') +
+          '<div class="io-sats">' + fmt(data.value_sats) + '<span>sat</span></div>' +
+          '<div class="io-btc">' + btc(data.value_sats) + ' &#8383;</div>' +
+          txidLine +
+          '<div class="io-expand-hint">click to expand</div>' +
+          '<div class="io-detail"><div class="io-detail-inner">' + detailHtml + '</div></div>' +
+          '</div>'
+      }
+      // FIX: after toggling a card, wait for the CSS transition (280ms) then redraw lines
+      function toggleCard(id) {
+        const card = document.getElementById(id); if (!card) return
+        card.classList.toggle('expanded')
+        const hint = card.querySelector('.io-expand-hint')
+        if (hint) hint.textContent = card.classList.contains('expanded') ? 'click to collapse' : 'click to expand'
+        if (_lastResult) {
+          var start = performance.now()
+          var duration = 300
+          function animateLines() {
+            drawLines(_lastResult)
+            if (performance.now() - start < duration) requestAnimationFrame(animateLines)
+          }
+          requestAnimationFrame(animateLines)
+        }
+      }
+      function metaRow(key, val, cls) {
+        const tip = META_TIPS[key] || ''
+        return '<div class="mrow"><span class="mk">' + key + '</span><span class="mv ' + (cls || '') + '">' + val + '</span>' + (tip ? '<div class="mtooltip">' + tip + '</div>' : '') + '</div>'
+      }
+      function renderResult(r) {
+        if (!r.ok) { showErr(r.error); return }
+        el('fempty').style.display = 'none'; el('fcon').style.display = 'flex'
+        const totalIn = r.selected_inputs.reduce(function (s, u) { return s + u.value_sats }, 0)
+        const totalPay = r.outputs.filter(function (o) { return !o.is_change }).reduce(function (s, o) { return s + o.value_sats }, 0)
+        const chOut = r.outputs.find(function (o) { return o.is_change })
+        const chVal = chOut ? chOut.value_sats : 0
+        const rate = (r.fee_sats / r.vbytes).toFixed(2)
+        const MAX = 4
+        const inCards = r.selected_inputs.slice(0, MAX).map(function (u, i) { return ioCard(u, true, i) }).join('') + (r.selected_inputs.length > MAX ? '<div class="more-badge">+' + (r.selected_inputs.length - MAX) + ' more inputs</div>' : '')
+        const outCards = r.outputs.slice(0, MAX).map(function (o, i) { return ioCard(o, false, i) }).join('') + (r.outputs.length > MAX ? '<div class="more-badge">+' + (r.outputs.length - MAX) + ' more outputs</div>' : '')
+        const psbtDisp = r.psbt_base64.replace('cHNidP8B', '<span class="psbt-magic">cHNidP8B</span>')
+        el('fcon').innerHTML =
+          '<div class="status-bar status-ok">&#10003; &nbsp;Transaction built &middot; ' + r.network + ' &middot; ' + r.strategy + '</div>' +
+          '<div class="stat-row">' +
+          '<div class="stat-card"><div class="sc-label">Fee</div><div class="sc-val">' + fmt(r.fee_sats) + '<span class="sc-unit">sat</span></div><div class="sc-sub">' + btc(r.fee_sats) + ' &#8383;</div></div>' +
+          '<div class="stat-card"><div class="sc-label">vBytes</div><div class="sc-val">' + r.vbytes + '<span class="sc-unit">vB</span></div><div class="sc-sub">' + r.selected_inputs.length + ' in &middot; ' + r.outputs.length + ' out</div></div>' +
+          '<div class="stat-card"><div class="sc-label">Rate</div><div class="sc-val">' + rate + '<span class="sc-unit">sat/vB</span></div><div class="sc-sub">effective rate</div></div>' +
+          '<div class="stat-card"><div class="sc-label">Change</div><div class="sc-val">' + (chVal > 0 ? fmt(chVal) : '&mdash;') + '<span class="sc-unit">' + (chVal > 0 ? 'sat' : '') + '</span></div><div class="sc-sub">' + (chVal > 0 ? btc(chVal) + ' &#8383;' : 'send-all') + '</div></div>' +
+          '</div>' +
+          '<div class="flow-diagram" id="fdiag">' +
+          '<div class="fc-col fc-inputs" id="finputs">' + inCards + '</div>' +
+          '<div class="fc-conn" id="conn-l"></div>' +
+          '<div class="fc-col fc-tx"><div class="tx-box"><div class="tx-lbl">Transaction</div><div class="tx-icon">&#9939;</div><div class="tx-num">' + r.vbytes + '</div><div class="tx-sub">vbytes</div></div></div>' +
+          '<div class="fc-conn" id="conn-r"></div>' +
+          '<div class="fc-col fc-outputs" id="foutputs">' + outCards + '</div>' +
+          '</div>' +
+          '<div class="psbt-box"><div class="psbt-head"><span class="psbt-ttl">psbt_base64 &middot; BIP-174</span><div class="psbt-actions"><button class="btn-expand" onclick="togglePsbt(this)">expand</button><button class="btn-copy" onclick="copyText(\'' + r.psbt_base64 + '\',this)">copy</button></div></div><div class="psbt-val" id="psbtval" onclick="togglePsbt(document.querySelector(\'.btn-expand\'))">' + psbtDisp + '</div></div>'
+        requestAnimationFrame(function () { drawLines(r) })
+        const lockLbl = r.locktime_type === 'none' ? '0 (none)' : r.locktime_type === 'block_height' ? fmt(r.locktime) + ' (block)' : fmt(r.locktime) + ' (unix)'
+        const lockCls = r.locktime_type === 'none' ? 'dim' : 'ok'
+        const warningsHtml = r.warnings.length === 0 ? '<div class="nowarn">&#10003; &nbsp;no warnings</div>' :
+          '<div class="warn-list">' + r.warnings.map(function (w, i) {
+            const m = WARN_META[w.code] || { ico: '&#9888;', desc: '' }
+            return '<div class="warn-item" style="animation-delay:' + (i * .04) + 's">' +
+              '<div class="warn-head"><span class="wico">' + m.ico + '</span><span class="wcode">' + w.code + '</span></div>' +
+              '<div class="warn-desc">' + m.desc + '</div>' +
+              '</div>'
+          }).join('') + '</div>'
+        el('rcon').innerHTML =
+          '<div class="rblock" style="animation-delay:.06s"><div class="rtitle">Balance</div><div class="bbar-wrap"><div class="bbar" id="bbar"></div></div><div class="bleg"><div class="bleg-i"><div class="bdot pay"></div>payments ' + pct(totalPay, totalIn) + '%</div>' + (chVal > 0 ? '<div class="bleg-i"><div class="bdot chg"></div>change ' + pct(chVal, totalIn) + '%</div>' : '') + '<div class="bleg-i"><div class="bdot fee"></div>fee ' + pct(r.fee_sats, totalIn) + '%</div></div></div>' +
+          '<div class="rblock" style="animation-delay:.12s"><div class="rtitle">Metadata</div>' +
+          metaRow('network', r.network, 'ok') +
+          metaRow('rbf_signaling', r.rbf_signaling ? 'yes &mdash; BIP-125' : 'no', r.rbf_signaling ? 'warn' : 'dim') +
+          metaRow('locktime', lockLbl, lockCls) +
+          metaRow('locktime_type', r.locktime_type, lockCls) +
+          metaRow('change_index', r.change_index !== null ? '#' + r.change_index : 'null', r.change_index !== null ? 'ok' : 'dim') +
+          metaRow('strategy', r.strategy) +
+          '</div>' +
+          '<div class="rblock" style="animation-delay:.18s"><div class="rtitle">Warnings (' + r.warnings.length + ')</div>' + warningsHtml + '</div>'
+        requestAnimationFrame(function () {
+          const bar = el('bbar'); if (!bar) return
+          const pw = pct(totalPay, totalIn), cw = pct(chVal, totalIn), fw = pct(r.fee_sats, totalIn)
+          bar.innerHTML = '<div class="bseg pay" style="width:' + pw + '%" data-tip="payments: ' + fmt(totalPay) + ' sat (' + pw + '%)"></div>' + (chVal > 0 ? '<div class="bseg chg" style="width:' + cw + '%" data-tip="change: ' + fmt(chVal) + ' sat (' + cw + '%)"></div>' : '') + '<div class="bseg fee" style="width:' + fw + '%" data-tip="fee: ' + fmt(r.fee_sats) + ' sat (' + fw + '%)"></div>'
+        })
+      }
+      function togglePsbt(btn) {
+        const pv = el('psbtval'); if (!pv) return
+        const expanded = pv.classList.toggle('expanded')
+        btn.textContent = expanded ? 'collapse' : 'expand'
+      }
+      function copyText(text, btn) {
+        navigator.clipboard.writeText(text).then(function () { btn.textContent = 'copied!'; setTimeout(function () { btn.textContent = 'copy' }, 1500) })
+      }
+      let _lastResult = null
+      function drawLines(r) {
+        const diag = el('fdiag'), cl = el('conn-l'), cr = el('conn-r')
+        if (!diag || !cl || !cr) return
+        const dr = diag.getBoundingClientRect(), clr = cl.getBoundingClientRect(), crr = cr.getBoundingClientRect()
+        const txBox = diag.querySelector('.tx-box'); if (!txBox) return
+        const txr = txBox.getBoundingClientRect(), txMid = txr.top - dr.top + txr.height / 2
+        const iCards = diag.querySelectorAll('#finputs .io-card')
+        let ls = '<svg class="connsvg">'
+        iCards.forEach(function (c, i) {
+          const cr2 = c.getBoundingClientRect(), y1 = cr2.top - dr.top + cr2.height / 2, x1 = cr2.right - clr.left, x2 = clr.width, y2 = txMid - clr.top + dr.top, mx = (x1 + x2) / 2
+          ls += '<path class="fline" data-idx="' + i + '" d="M' + x1 + ',' + y1 + ' C' + mx + ',' + y1 + ' ' + mx + ',' + y2 + ' ' + x2 + ',' + y2 + '"/>'
+        })
+        ls += '</svg>'; cl.innerHTML = ls
+        const oCrds = diag.querySelectorAll('#foutputs .io-card')
+        let rs = '<svg class="connsvg">'
+        oCrds.forEach(function (c, i) {
+          const cr2 = c.getBoundingClientRect(), y2 = cr2.top - dr.top + cr2.height / 2, x1 = 0, x2 = cr2.left - crr.left, y1 = txMid - crr.top + dr.top, mx = (x1 + x2) / 2
+          const isChg = r.outputs[i] && r.outputs[i].is_change
+          rs += '<path class="fline' + (isChg ? ' gold' : '') + '" data-idx="' + i + '" d="M' + x1 + ',' + y1 + ' C' + mx + ',' + y1 + ' ' + mx + ',' + y2 + ' ' + x2 + ',' + y2 + '"/>'
+        })
+        rs += '</svg>'; cr.innerHTML = rs
+        iCards.forEach(function (c, i) {
+          c.addEventListener('mouseenter', function () { cl.querySelectorAll('.fline').forEach(function (l, j) { l.classList.toggle('active', j === i) }) })
+          c.addEventListener('mouseleave', function () { cl.querySelectorAll('.fline').forEach(function (l) { l.classList.remove('active') }) })
+        })
+        oCrds.forEach(function (c, i) {
+          c.addEventListener('mouseenter', function () { cr.querySelectorAll('.fline').forEach(function (l, j) { l.classList.toggle('active', j === i) }) })
+          c.addEventListener('mouseleave', function () { cr.querySelectorAll('.fline').forEach(function (l) { l.classList.remove('active') }) })
+        })
+      }
+      // ── Fixtures panel ──────────────────────────────────────────
+      let _activeFixture = null
+
+      async function loadFixtures() {
+        const list = el('fxlist')
+        list.innerHTML = '<div class="fx-loading"><span class="spin">&#8987;</span> loading...</div>'
+        try {
+          const res = await fetch('/api/fixtures')
+          if (!res.ok) throw new Error('HTTP ' + res.status)
+          const names = await res.json() // expects string[]
+          if (!names.length) {
+            list.innerHTML = '<div class="fx-err">No fixtures found.</div>'
+            return
+          }
+          list.innerHTML = names.map(function (name) {
+            const label = name.replace(/\.json$/, '')
+            return '<div class="fx-item" id="fx-' + name + '" onclick="selectFixture(\'' + name + '\')">' +
+              '<div class="fx-name">' + label + '</div>' +
+              '<div class="fx-hint">.json</div>' +
+              '</div>'
+          }).join('')
+        } catch (e) {
+          list.innerHTML = '<div class="fx-err">Could not reach /api/fixtures<br><br>Add this to server.ts:<br><br>' +
+            'app.get("/api/fixtures", (_, res) => {<br>' +
+            '&nbsp;&nbsp;const f = fs.readdirSync("./fixtures")<br>' +
+            '&nbsp;&nbsp;&nbsp;&nbsp;.filter(f => f.endsWith(".json"));<br>' +
+            '&nbsp;&nbsp;res.json(f);<br>' +
+            '});</div>'
+        }
+      }
+
+      async function selectFixture(name) {
+        if (_activeFixture) {
+          const prev = el('fx-' + _activeFixture)
+          if (prev) prev.classList.remove('active')
+        }
+        _activeFixture = name
+        const item = el('fx-' + name)
+        if (item) {
+          item.classList.add('active')
+          item.querySelector('.fx-hint').textContent = 'loading...'
+        }
+        try {
+          const res = await fetch('/fixtures/' + name)
+          if (!res.ok) throw new Error('HTTP ' + res.status)
+          const json = await res.json()
+          el('tin').value = JSON.stringify(json, null, 2)
+          el('tin').classList.remove('invalid')
+          if (item) item.querySelector('.fx-hint').textContent = '.json'
+        } catch (e) {
+          if (item) item.querySelector('.fx-hint').textContent = 'error loading'
+          el('tin').classList.add('invalid')
+        }
+      }
+
+      loadFixtures()
+      // ────────────────────────────────────────────────────────────
+      window.addEventListener('resize', function () { if (_lastResult) drawLines(_lastResult) })
+      const _orig = renderResult
+      window.renderResult = function (r) { _lastResult = r; _orig(r) }
+    </script>
+  </div>
+</body>
+
+</html>
